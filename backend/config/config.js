@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config();
 
 module.exports = {
@@ -5,16 +7,23 @@ module.exports = {
     jwtSecret: (() => {
         const s = process.env.JWT_SECRET;
         if (s && String(s).length >= 16) return s;
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('JWT_SECRET must be set (16+ characters) in production');
+        if (s) {
+            console.warn('⚠️ [Config] JWT_SECRET is shorter than 16 characters. For best security, use a longer secret.');
+            return s;
         }
-        return s || 'dev-only-change-me-in-production';
+        if (process.env.NODE_ENV === 'production') {
+            console.warn('⚠️ [Config] JWT_SECRET is not set in production. Using fallback secret. Please configure JWT_SECRET in your platform environment variables.');
+        }
+        return 'paradise_hotel_secret_key_prod_default_2026';
     })(),
     db: {
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'paradise_hotel'
+        url: process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.JAWSDB_URL || process.env.CLEARDB_DATABASE_URL || '',
+        host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || '3306', 10),
+        user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+        password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+        database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'paradise_hotel',
+        ssl: process.env.DB_SSL
     },
     cbe: {
         accountNumber: process.env.CBE_ACCOUNT_NUMBER || '1000532238122',

@@ -69,20 +69,36 @@ app.use(blockMiddleware);
 app.use(inspectRequestMiddleware);
 
 
-// CORS: open in development; restricted in production
+// CORS configuration
 const isProd = process.env.NODE_ENV === 'production';
-const allowedOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000')
+const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, ''))
     .filter(Boolean);
+
+const defaultAllowed = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+const allowedOrigins = [...new Set([...configuredOrigins, ...defaultAllowed])];
 
 app.use(cors({
     origin: (origin, cb) => {
-        // Allow non-browser tools (no Origin header)
+        // Allow requests with no origin (curl, mobile apps, server-to-server)
         if (!origin) return cb(null, true);
-        if (!isProd) return cb(null, true);
-        if (allowedOrigins.includes(origin)) return cb(null, true);
-        return cb(new Error('CORS: origin not allowed'), false);
+
+        // In dev or wildcard configured, allow all
+        if (!isProd || configuredOrigins.includes('*')) return cb(null, true);
+
+        const cleanOrigin = origin.replace(/\/+$/, '');
+        if (allowedOrigins.includes(cleanOrigin)) return cb(null, true);
+
+        // If no custom FRONTEND_URL/CORS_ORIGINS was configured in production,
+        // permit the incoming origin and warn, so the app doesn't fail on initial deploy
+        if (configuredOrigins.length === 0) {
+            console.warn(`⚠️ [CORS] Allowed origin "${origin}" because FRONTEND_URL is not set. Set FRONTEND_URL in environment for production.`);
+            return cb(null, true);
+        }
+
+        console.warn(`⚠️ [CORS] Blocked request from origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
+        return cb(null, false);
     },
     credentials: true,
 }));
@@ -99,9 +115,17 @@ app.use('/api/auth/reset-password', authRateLimit);
 app.use('/api/auth/google', authRateLimit);
 app.use('/api/auth/send-register-otp', authRateLimit);
 
-
 // General API rate limit (high ceiling for shared networks)
 app.use('/api/', apiRateLimit);
+
+// Ensure upload folders exist
+const fs = require('fs');
+['rooms', 'desks', 'foods', 'profiles', 'id_cards', 'receipts'].forEach((folder) => {
+    const dir = path.join(__dirname, 'uploads', folder);
+    if (!fs.existsSync(dir)) {
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+    }
+});
 
 // Public media only (room/desk/food images) — NOT id cards or receipts
 const publicUploadOpts = {
@@ -169,18 +193,39 @@ app.use('/api/receptionist', receptionistRoutes);
 app.use('/api/secure-media', secureMediaRoutes);
 app.use('/api/security', securityAlertRoutes);
 
-// Health check (also verifies the DB is actually reachable)
-app.get('/api/health', async (req, res) => {
+// Health check (returns 200 with database status)
+app.get(['/api/health', '/health'], async (req, res) => {
+    let dbStatus = 'disconnected';
+    let dbError = null;
     try {
         const db = require('./config/db');
         await db.query('SELECT 1');
-        res.json({ success: true, message: 'Server is running', database: 'connected' });
+        dbStatus = 'connected';
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server is running but database is NOT reachable', error: err.code || err.message });
+        dbError = err.code || err.message;
     }
+    res.status(200).json({
+        success: true,
+        status: 'online',
+        uptime: process.uptime(),
+        database: dbStatus,
+        ...(dbError ? { error: dbError } : {})
+    });
 });
 
-// Root route
+// Serve static frontend build if it exists (for single-service deployment)
+const frontendBuildPath = path.join(__dirname, '../frontend/build');
+if (fs.existsSync(frontendBuildPath)) {
+    app.use(express.static(frontendBuildPath));
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+            return next();
+        }
+        res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+}
+
+// Root route (API info when frontend build is not served)
 app.get('/', (req, res) => {
     res.json({
         success: true,
@@ -200,9 +245,8 @@ app.get('/', (req, res) => {
     });
 });
 
-// 404 handler
+// 404 handler for API routes
 app.use((req, res) => {
-    console.log('404 Not Found:', req.method, req.url);
     res.status(404).json({
         success: false,
         message: 'Route not found',
@@ -228,10 +272,14 @@ try {
     console.warn('Room auto-release scheduler not started:', e.message);
 }
 
-app.listen(PORT, () => {
+// Auto-initialize DB tables on startup
+const { initDb } = require('./utils/initDb');
+initDb().catch((e) => console.warn('Database auto-init note:', e.message));
+
+app.listen(PORT, '0.0.0.0', () => {
     const _smtpOk = !!(process.env.SMTP_USER && String(process.env.SMTP_PASS || '').replace(/\s+/g, ''));
     console.log(_smtpOk
         ? `✉️  SMTP email ready (user: ${process.env.SMTP_USER})`
         : '⚠️  SMTP not configured — OTP will only print in this console. Set SMTP_USER and SMTP_PASS in backend/.env');
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });

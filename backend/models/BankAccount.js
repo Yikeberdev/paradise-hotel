@@ -8,6 +8,27 @@ function accountNumberHash(accountNumber) {
 
 async function ensureColumns() {
     try {
+        await db.execute(`CREATE TABLE IF NOT EXISTS bank_accounts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            owner_type ENUM('hotel','customer') DEFAULT 'customer',
+            customer_id INT NULL,
+            bank_name VARCHAR(100) NOT NULL,
+            bank_code VARCHAR(50) NULL,
+            account_number VARCHAR(512) NULL,
+            account_number_hash VARCHAR(64) NULL,
+            account_username VARCHAR(100) NULL,
+            account_holder_name VARCHAR(100) NULL,
+            currency VARCHAR(10) DEFAULT 'ETB',
+            balance VARCHAR(255) NOT NULL DEFAULT '0',
+            is_primary TINYINT(1) DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX (customer_id),
+            INDEX (account_number_hash)
+        )`);
+    } catch (_) {}
+    try {
         await db.execute('ALTER TABLE bank_accounts ADD COLUMN account_number_hash VARCHAR(64) NULL');
     } catch (_) {}
     try {

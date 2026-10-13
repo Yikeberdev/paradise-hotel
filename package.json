@@ -2,21 +2,24 @@
   "name": "paradise-hotel-root",
   "version": "1.0.0",
   "private": true,
+  "main": "server.js",
   "workspaces": [
     "backend",
     "frontend"
   ],
   "scripts": {
-    "start": "concurrently \"npm run start --prefix backend\" \"npm run start --prefix frontend\"",
+    "start": "node backend/server.js",
+    "start:backend": "node backend/server.js",
+    "start:frontend": "npm run start --prefix frontend",
+    "start:all": "concurrently \"npm run start --prefix backend\" \"npm run start --prefix frontend\"",
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run start --prefix frontend\"",
     "build": "npm run build --prefix frontend",
     "install:all": "npm install --prefix backend && npm install --prefix frontend",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "db:init": "node backend/utils/initDb.js"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.3"
-  },
-  "devDependencies": {
+    "bcryptjs": "^3.0.3",
     "concurrently": "^8.2.2"
   }
 }
