@@ -489,6 +489,78 @@ async function initDb() {
             console.log('✅ Default accounts created: admin / manager / receptionist');
         }
 
+        // Seed rooms if empty
+        const [existingRooms] = await db.execute('SELECT id FROM rooms LIMIT 1');
+        if (!existingRooms || existingRooms.length === 0) {
+            console.log('🌱 Seeding sample rooms...');
+            const sampleRooms = [
+                ['101', 'Single', 'Comfortable single room with city view', 1500, 1, 'available', 'WiFi, TV, AC'],
+                ['102', 'Single', 'Single room with garden view', 1600, 1, 'available', 'WiFi, TV, AC'],
+                ['201', 'Double', 'Spacious double room with balcony', 2500, 2, 'available', 'WiFi, TV, AC, Balcony'],
+                ['202', 'Double', 'Double room with mountain view', 2700, 2, 'available', 'WiFi, TV, AC'],
+                ['301', 'Suite', 'Luxury suite with living room', 4500, 4, 'available', 'WiFi, TV, AC, Living Room, Jacuzzi'],
+                ['302', 'Twin', 'Twin bed room', 2200, 2, 'available', 'WiFi, TV, AC, Twin Beds'],
+                ['303', 'Family', 'Family room with 2 bedrooms', 4000, 5, 'available', 'WiFi, TV, AC, Interconnecting Rooms'],
+                ['304', 'Deluxe', 'Deluxe room with panoramic view', 3500, 3, 'available', 'WiFi, TV, AC, Panoramic View']
+            ];
+            for (const r of sampleRooms) {
+                try {
+                    await db.execute(
+                        'INSERT INTO rooms (room_number, room_type, description, price_per_night, capacity, status, amenities) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        r
+                    );
+                } catch (_) {}
+            }
+        }
+
+        // Seed desks if empty
+        const [existingDesks] = await db.execute('SELECT id FROM desks LIMIT 1');
+        if (!existingDesks || existingDesks.length === 0) {
+            console.log('🌱 Seeding sample desks...');
+            const sampleDesks = [
+                ['D01', 4, 'Main Hall - Window', 'available', 50, 'Near window with great view'],
+                ['D02', 2, 'Main Hall - Center', 'available', 40, 'Cozy table for two'],
+                ['D03', 6, 'Terrace - Outdoor', 'available', 70, 'Outdoor seating'],
+                ['D04', 4, 'VIP Area', 'available', 100, 'VIP premium service'],
+                ['D05', 8, 'Main Hall - Corner', 'available', 90, 'Large table for groups']
+            ];
+            for (const d of sampleDesks) {
+                try {
+                    await db.execute(
+                        'INSERT INTO desks (desk_number, capacity, location, status, price, description) VALUES (?, ?, ?, ?, ?, ?)',
+                        d
+                    );
+                } catch (_) {}
+            }
+        }
+
+        // Seed food menu if empty
+        const [existingFood] = await db.execute('SELECT id FROM food_menu LIMIT 1');
+        if (!existingFood || existingFood.length === 0) {
+            console.log('🌱 Seeding sample food menu...');
+            const sampleFood = [
+                ['Ethiopian Breakfast', 'Breakfast', 'Traditional Ethiopian breakfast with coffee', 250, 'available', 1],
+                ['Continental Breakfast', 'Breakfast', 'Toast, eggs, juice, coffee', 300, 'available', 0],
+                ['Doro Wat', 'Traditional Food', 'Spicy chicken stew with injera', 350, 'available', 1],
+                ['Kitfo', 'Traditional Food', 'Minced beef with Ethiopian spices', 400, 'available', 1],
+                ['Vegetable Platter', 'Lunch', 'Assorted vegetarian dishes', 280, 'available', 0],
+                ['Tibs', 'Dinner', 'Sautéed beef with vegetables', 380, 'available', 0],
+                ['Burger & Fries', 'Fast Food', 'Juicy beef burger with fresh fries', 260, 'available', 0],
+                ['Fanta', 'Beverage', 'Orange soda', 50, 'available', 0],
+                ['Coca Cola', 'Beverage', 'Classic cola', 50, 'available', 0],
+                ['Spring Water', 'Beverage', 'Mineral water', 30, 'available', 0],
+                ['Coffee', 'Beverage', 'Traditional Ethiopian coffee', 40, 'available', 1]
+            ];
+            for (const f of sampleFood) {
+                try {
+                    await db.execute(
+                        'INSERT INTO food_menu (item_name, category, description, price, availability, is_special) VALUES (?, ?, ?, ?, ?, ?)',
+                        f
+                    );
+                } catch (_) {}
+            }
+        }
+
         console.log('✅ Database tables initialized successfully.');
     } catch (err) {
         console.warn('⚠️ [initDb] Note:', err.message);
