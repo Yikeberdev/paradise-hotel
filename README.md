@@ -1,15 +1,17 @@
 # 🏨 Paradise Hotel Reservation & Management System
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Yikeberdev/paradise-hotel)
-[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?logo=vercel)](https://web-production-6ef0b.up.railway.app)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen?logo=vercel)](https://paradise-hotel-tau.vercel.app)
 [![Backend API](https://img.shields.io/badge/API-Online%20on%20Railway-success?logo=railway)](https://web-production-6ef0b.up.railway.app/api/health)
 
 ---
 
 ### 🌐 Live Links
 - **🔗 GitHub Repository:** [https://github.com/Yikeberdev/paradise-hotel](https://github.com/Yikeberdev/paradise-hotel)
-- **🚀 Live Demo Website:** [https://web-production-6ef0b.up.railway.app](https://web-production-6ef0b.up.railway.app)
+- **🚀 Live Demo Website:** [https://paradise-hotel-tau.vercel.app](https://paradise-hotel-tau.vercel.app)
 - **⚡ Backend API Endpoint:** [https://web-production-6ef0b.up.railway.app/api](https://web-production-6ef0b.up.railway.app/api)
+
+The Vercel frontend forwards `/api/*` requests to the Railway backend.
 
 ---
 
