@@ -279,21 +279,93 @@ async function initDb() {
             CREATE TABLE IF NOT EXISTS payments (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 customer_id INT,
-                payment_type ENUM('room_reservation', 'desk_reservation', 'food_order') NOT NULL,
-                reference_id INT,
+                reference_number VARCHAR(50) NOT NULL,
+                payment_type VARCHAR(50) NOT NULL,
+                payment_method VARCHAR(100) NOT NULL DEFAULT 'cbe_birr',
+                account_number VARCHAR(512),
+                account_name VARCHAR(100),
+                transaction_id VARCHAR(100),
+                reservation_type ENUM('room', 'desk', 'food'),
+                reservation_id INT,
                 amount DECIMAL(10,2) NOT NULL,
-                payment_method ENUM('telebirr', 'cbe_birr', 'bank_transfer', 'cash') NOT NULL,
-                transaction_reference VARCHAR(100),
+                status VARCHAR(30) NOT NULL DEFAULT 'pending',
+                rejection_reason VARCHAR(255),
                 receipt_image VARCHAR(255),
-                payment_status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
                 notes TEXT,
+                is_read TINYINT(1) DEFAULT 0,
                 verified_by INT,
                 verified_at TIMESTAMP NULL,
                 transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX (customer_id),
-                INDEX (payment_type, reference_id)
+                UNIQUE KEY uq_payments_reference_number (reference_number),
+                INDEX (customer_id)
             )
         `);
+
+        // Upgrade payment tables created by older versions without discarding legacy columns or rows.
+        const [paymentColumns] = await db.execute('SHOW COLUMNS FROM payments');
+        const paymentColumnNames = new Set(paymentColumns.map((column) => column.Field));
+        const addPaymentColumn = async (name, definition) => {
+            if (!paymentColumnNames.has(name)) {
+                await db.execute(`ALTER TABLE payments ADD COLUMN ${name} ${definition}`);
+                paymentColumnNames.add(name);
+            }
+        };
+        await addPaymentColumn('reference_number', 'VARCHAR(50) NULL');
+        await addPaymentColumn('payment_method', "VARCHAR(100) NOT NULL DEFAULT 'cbe_birr'");
+        await addPaymentColumn('account_number', 'VARCHAR(512) NULL');
+        await addPaymentColumn('account_name', 'VARCHAR(100) NULL');
+        await addPaymentColumn('transaction_id', 'VARCHAR(100) NULL');
+        await addPaymentColumn('reservation_type', "ENUM('room', 'desk', 'food') NULL");
+        await addPaymentColumn('reservation_id', 'INT NULL');
+        await addPaymentColumn('status', "VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        await addPaymentColumn('rejection_reason', 'VARCHAR(255) NULL');
+        await addPaymentColumn('is_read', 'TINYINT(1) DEFAULT 0');
+
+        const [paymentColumnTypes] = await db.execute('SHOW COLUMNS FROM payments');
+        const paymentColumnTypeByName = new Map(paymentColumnTypes.map((column) => [column.Field, column.Type]));
+        if (!paymentColumnTypeByName.get('payment_type').startsWith('varchar')) {
+            await db.execute('ALTER TABLE payments MODIFY COLUMN payment_type VARCHAR(50) NOT NULL');
+        }
+        if (!paymentColumnTypeByName.get('payment_method').startsWith('varchar')) {
+            await db.execute("ALTER TABLE payments MODIFY COLUMN payment_method VARCHAR(100) NOT NULL DEFAULT 'cbe_birr'");
+        }
+        if (!paymentColumnTypeByName.get('status').startsWith('varchar')) {
+            await db.execute("ALTER TABLE payments MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending'");
+        }
+        await db.execute(
+            "UPDATE payments SET reference_number = CONCAT('LEGACY-', id) WHERE reference_number IS NULL OR reference_number = ''"
+        );
+        if (paymentColumnNames.has('transaction_reference')) {
+            await db.execute(
+                "UPDATE payments SET transaction_id = transaction_reference WHERE (transaction_id IS NULL OR transaction_id = '') AND transaction_reference IS NOT NULL"
+            );
+        }
+        if (paymentColumnNames.has('reference_id')) {
+            await db.execute(
+                'UPDATE payments SET reservation_id = reference_id WHERE reservation_id IS NULL AND reference_id IS NOT NULL'
+            );
+        }
+        await db.execute(
+            `UPDATE payments SET reservation_type = CASE payment_type
+                WHEN 'room_reservation' THEN 'room'
+                WHEN 'desk_reservation' THEN 'desk'
+                WHEN 'food_order' THEN 'food'
+                ELSE payment_type
+            END
+            WHERE reservation_type IS NULL AND payment_type IN ('room', 'desk', 'food', 'room_reservation', 'desk_reservation', 'food_order')`
+        );
+        if (paymentColumnNames.has('payment_status')) {
+            await db.execute(
+                "UPDATE payments SET status = payment_status WHERE status = 'pending' AND payment_status <> 'pending'"
+            );
+        }
+        await db.execute('ALTER TABLE payments MODIFY COLUMN reference_number VARCHAR(50) NOT NULL');
+        const [paymentIndexes] = await db.execute('SHOW INDEX FROM payments');
+        if (!paymentIndexes.some((index) => index.Column_name === 'reference_number' && index.Non_unique === 0)) {
+            await db.execute(
+                'ALTER TABLE payments ADD UNIQUE INDEX uq_payments_reference_number (reference_number)'
+            );
+        }
 
         // 14. Refund requests table
         await db.execute(`
